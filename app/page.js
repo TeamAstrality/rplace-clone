@@ -28,7 +28,6 @@ export default function Page() {
   const [uptime, setUptime] = useState("0:00:00");
 
   const [placedCount, setPlacedCount] = useState(0);
-  const [deletedCount, setDeletedCount] = useState(0);
 
   const pixelsRef = useRef([]);
   const gridSizeRef = useRef({ ...DEFAULT_GRID_SIZE });
@@ -132,13 +131,11 @@ export default function Page() {
           const { x, y, color } = payload.new;
           const idx = pixelsRef.current.findIndex(p => p.x===x && p.y===y);
           if(idx>=0){
-            if(color==="") setDeletedCount(prev=>prev+1);
             pixelsRef.current[idx].color = color;
-          }
-          else {
-            if(color!=="") setPlacedCount(prev=>prev+1);
+          } else {
             pixelsRef.current.push({x,y,color});
           }
+          setPlacedCount(pixelsRef.current.length);
           drawCanvas();
           checkExpandGrid();
         }).subscribe();
@@ -171,8 +168,9 @@ export default function Page() {
       pixelsRef.current[idx].color = selectedColor;
     } else {
       pixelsRef.current.push({ x: ix, y: iy, color: selectedColor });
-      setPlacedCount(prev=>prev+1);
     }
+
+    setPlacedCount(pixelsRef.current.length);
     drawCanvas();
     checkExpandGrid();
 
@@ -289,7 +287,7 @@ export default function Page() {
         </div>
       )}
 
-      {/* Server Uptime + Placed/Deleted - bottom left */}
+      {/* Server Uptime + Placed Pixels - bottom left */}
       <div style={{
         position: "fixed",
         bottom: 10,
@@ -306,7 +304,6 @@ export default function Page() {
       }}>
         <div>Server: {uptime}</div>
         <div>Placed: {placedCount}</div>
-        <div>Deleted: {deletedCount}</div>
       </div>
     </>
   );
