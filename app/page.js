@@ -21,13 +21,14 @@ export default function Page() {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [selectedColor, setSelectedColor] = useState("#000000");
 
-  // cooldown timer
   const [cooldown, setCooldown] = useState(false);
   const [timer, setTimer] = useState(0);
 
-  // server uptime
   const [serverStartTime] = useState(Date.now());
   const [uptime, setUptime] = useState("0:00:00");
+
+  const [placedCount, setPlacedCount] = useState(0);
+  const [deletedCount, setDeletedCount] = useState(0);
 
   const pixelsRef = useRef([]);
   const gridSizeRef = useRef({ ...DEFAULT_GRID_SIZE });
@@ -110,38 +111,34 @@ export default function Page() {
   };
 
   useEffect(() => {
-    // center grid initially
     setOffset({
       x: window.innerWidth/2 - (gridSizeRef.current.width*pixelSize)/2,
       y: window.innerHeight/2 - (gridSizeRef.current.height*pixelSize)/2
     });
 
-    // fetch pixels from Supabase
     supabase.from("pixels").select("*").then(({ data }) => {
       if(data && data.length>0){
         pixelsRef.current = data.map(p => ({ x: p.x, y: p.y, color: p.color }));
+        setPlacedCount(pixelsRef.current.length);
       } else {
-        // test pixels
-        pixelsRef.current = [
-          { x:0, y:0, color:"#ff0000" },
-          { x:1, y:0, color:"#00ff00" },
-          { x:0, y:1, color:"#0000ff" },
-          { x:1, y:1, color:"#ffff00" },
-          { x:2, y:0, color:"#ffffff" },
-          { x:2, y:1, color:"#000000" }
-        ];
+        pixelsRef.current = [];
       }
       drawCanvas();
     });
 
-    // Realtime updates
     const channel = supabase.channel("pixels")
       .on("postgres_changes", { event: "*", schema: "public", table: "pixels" },
         payload => {
           const { x, y, color } = payload.new;
           const idx = pixelsRef.current.findIndex(p => p.x===x && p.y===y);
-          if(idx>=0) pixelsRef.current[idx].color = color;
-          else pixelsRef.current.push({x,y,color});
+          if(idx>=0){
+            if(color==="") setDeletedCount(prev=>prev+1);
+            pixelsRef.current[idx].color = color;
+          }
+          else {
+            if(color!=="") setPlacedCount(prev=>prev+1);
+            pixelsRef.current.push({x,y,color});
+          }
           drawCanvas();
           checkExpandGrid();
         }).subscribe();
@@ -155,7 +152,6 @@ export default function Page() {
     };
   },[]);
 
-  // cooldown click handler
   const handleClick = e => {
     if(cooldown) return;
 
@@ -170,17 +166,18 @@ export default function Page() {
     const iy = Math.floor(y);
     if(ix<0||ix>=gridSizeRef.current.width||iy<0||iy>=gridSizeRef.current.height) return;
 
-    // immediate local update
     const idx = pixelsRef.current.findIndex(p => p.x===ix && p.y===iy);
-    if(idx>=0) pixelsRef.current[idx].color = selectedColor;
-    else pixelsRef.current.push({ x: ix, y: iy, color: selectedColor });
+    if(idx>=0){
+      pixelsRef.current[idx].color = selectedColor;
+    } else {
+      pixelsRef.current.push({ x: ix, y: iy, color: selectedColor });
+      setPlacedCount(prev=>prev+1);
+    }
     drawCanvas();
     checkExpandGrid();
 
-    // send to Supabase
     supabase.from("pixels").upsert({ x: ix, y: iy, color: selectedColor });
 
-    // start cooldown timer
     setCooldown(true);
     setTimer(60);
     const interval = setInterval(() => {
@@ -204,7 +201,6 @@ export default function Page() {
     const delta = e.deltaY < 0 ? 1.1 : 0.9;
     let newPixelSize = pixelSize * delta;
 
-    // limit zoom out
     const minPixelSizeX = window.innerWidth / gridSizeRef.current.width;
     const minPixelSizeY = window.innerHeight / gridSizeRef.current.height;
     const minPixelSize = Math.min(minPixelSizeX, minPixelSizeY);
@@ -212,7 +208,6 @@ export default function Page() {
     newPixelSize = Math.max(newPixelSize, minPixelSize);
     newPixelSize = Math.min(newPixelSize, 50);
 
-    // adjust offset so zoom centers on mouse
     const offsetX = mouseX - ((mouseX - offset.x) * newPixelSize) / pixelSize;
     const offsetY = mouseY - ((mouseY - offset.y) * newPixelSize) / pixelSize;
 
@@ -235,7 +230,6 @@ export default function Page() {
 
   useEffect(()=>{ drawCanvas(); },[offset,pixelSize]);
 
-  // Server uptime timer
   useEffect(() => {
     const interval = setInterval(() => {
       const diff = Date.now() - serverStartTime;
@@ -295,7 +289,7 @@ export default function Page() {
         </div>
       )}
 
-      {/* Server Uptime Timer - bottom left */}
+      {/* Server Uptime + Placed/Deleted - bottom left */}
       <div style={{
         position: "fixed",
         bottom: 10,
@@ -305,9 +299,14 @@ export default function Page() {
         padding: "8px 12px",
         borderRadius: "8px",
         fontSize: "16px",
-        fontFamily: "monospace"
+        fontFamily: "monospace",
+        display:"flex",
+        flexDirection:"column",
+        gap:2
       }}>
-        Server: {uptime}
+        <div>Server: {uptime}</div>
+        <div>Placed: {placedCount}</div>
+        <div>Deleted: {deletedCount}</div>
       </div>
     </>
   );
