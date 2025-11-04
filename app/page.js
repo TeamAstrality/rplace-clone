@@ -9,7 +9,7 @@ const supabase = createClient(
 );
 
 const GRID_SIZE = 100;
-const DEFAULT_PIXEL_SIZE = 8;
+const DEFAULT_PIXEL_SIZE = 10;
 const COLORS = [
   "#ffffff", "#000000", "#ff0000", "#00ff00", "#0000ff",
   "#ffff00", "#ff00ff", "#00ffff", "#808080", "#ffa500"
@@ -23,15 +23,18 @@ export default function Page() {
   const [cooldown, setCooldown] = useState(false);
   const pixelsRef = useRef([]);
 
+  // draw canvas
   const drawCanvas = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
+    // clear
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // draw pixels
     pixelsRef.current.forEach(p => {
       ctx.fillStyle = p.color || "#ffffff";
       ctx.fillRect(
@@ -42,6 +45,7 @@ export default function Page() {
       );
     });
 
+    // draw grid
     ctx.strokeStyle = "#ccc";
     ctx.lineWidth = 0.5;
     for (let i = 0; i <= GRID_SIZE; i++) {
@@ -58,6 +62,12 @@ export default function Page() {
   };
 
   useEffect(() => {
+    // center grid initially
+    setOffset({
+      x: window.innerWidth / 2 - (GRID_SIZE * pixelSize) / 2,
+      y: window.innerHeight / 2 - (GRID_SIZE * pixelSize) / 2
+    });
+
     const handleResize = () => drawCanvas();
     window.addEventListener("resize", handleResize);
 
@@ -83,7 +93,7 @@ export default function Page() {
       supabase.removeChannel(channel);
       window.removeEventListener("resize", handleResize);
     };
-  }, [pixelSize, offset]);
+  }, []);
 
   const handleClick = e => {
     if (cooldown) return;
@@ -114,11 +124,37 @@ export default function Page() {
   };
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{ display: "block", width: "100vw", height: "100vh", cursor: "crosshair" }}
-      onClick={handleClick}
-      onWheel={handleWheel}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        style={{ display: "block", width: "100vw", height: "100vh", cursor: "crosshair" }}
+        onClick={handleClick}
+        onWheel={handleWheel}
+      />
+      <div style={{
+        position: "fixed",
+        top: 10,
+        left: 10,
+        background: "rgba(255,255,255,0.8)",
+        padding: 5,
+        borderRadius: 5,
+        display: "flex",
+        gap: 5
+      }}>
+        {COLORS.map(c => (
+          <div
+            key={c}
+            onClick={() => setSelectedColor(c)}
+            style={{
+              width: 24,
+              height: 24,
+              background: c,
+              border: selectedColor === c ? "3px solid black" : "1px solid #999",
+              cursor: "pointer"
+            }}
+          />
+        ))}
+      </div>
+    </>
   );
 }
