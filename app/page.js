@@ -39,7 +39,7 @@ export default function Page() {
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
     // background
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = "#eeeeee"; // light gray so white pixels are visible
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
     // draw pixels
@@ -94,15 +94,24 @@ export default function Page() {
       y: window.innerHeight/2 - (gridSizeRef.current.height*pixelSize)/2
     });
 
-    // fetch initial pixels
+    // fetch initial pixels from Supabase
     supabase.from("pixels").select("*").then(({ data }) => {
-      if (data) {
+      if (data && data.length > 0) {
         pixelsRef.current = data.map(p => ({ x: p.x, y: p.y, color: p.color }));
-        drawCanvas();
+      } else {
+        // add some test pixels so colors show up immediately
+        pixelsRef.current = [
+          { x:0, y:0, color:"#ff0000" },
+          { x:1, y:0, color:"#00ff00" },
+          { x:0, y:1, color:"#0000ff" },
+          { x:1, y:1, color:"#ffff00" },
+          { x:2, y:0, color:"#ffffff" } // white pixel visible on gray background
+        ];
       }
+      drawCanvas();
     });
 
-    // realtime updates
+    // Realtime updates
     const channel = supabase.channel("pixels")
       .on("postgres_changes", { event: "*", schema: "public", table: "pixels" },
         payload => {
