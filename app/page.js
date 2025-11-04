@@ -117,7 +117,6 @@ export default function Page() {
 
   return (
     <div style={{ userSelect: "none", textAlign: "center", padding: 16 }}>
-      <h1>r/Place Clone with Zoom</h1>
       <canvas
         ref={canvasRef}
         style={{ border: "1px solid #999", cursor: "crosshair" }}
