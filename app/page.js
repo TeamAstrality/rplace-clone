@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
+// Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_KEY
@@ -24,7 +25,7 @@ export default function Page() {
   const [cooldown, setCooldown] = useState(false);
   const [timer, setTimer] = useState(0);
 
-  const [serverStartTime] = useState(Date.now());
+  const [serverStartTime, setServerStartTime] = useState(Date.now());
   const [uptime, setUptime] = useState("0:00:00");
 
   const [placedCount, setPlacedCount] = useState(0);
@@ -34,7 +35,22 @@ export default function Page() {
   const draggingRef = useRef(false);
   const lastMouseRef = useRef({ x: 0, y: 0 });
 
-  const drawCanvas = () => {
+  const smoothOffsetRef = useRef(offset);
+  const smoothPixelSizeRef = useRef(pixelSize);
+
+  // Smooth animation loop
+  useEffect(() => {
+    const animate = () => {
+      smoothOffsetRef.current.x += (offset.x - smoothOffsetRef.current.x) * 0.2;
+      smoothOffsetRef.current.y += (offset.y - smoothOffsetRef.current.y) * 0.2;
+      smoothPixelSizeRef.current += (pixelSize - smoothPixelSizeRef.current) * 0.2;
+      drawCanvas(smoothOffsetRef.current, smoothPixelSizeRef.current);
+      requestAnimationFrame(animate);
+    };
+    animate();
+  }, [offset, pixelSize]);
+
+  const drawCanvas = (drawOffset = offset, drawPixelSize = pixelSize) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -53,40 +69,40 @@ export default function Page() {
     pixelsRef.current.forEach(p => {
       ctx.fillStyle = p.color;
       ctx.fillRect(
-        p.x*pixelSize + offset.x,
-        p.y*pixelSize + offset.y,
-        Math.ceil(pixelSize),
-        Math.ceil(pixelSize)
+        p.x*drawPixelSize + drawOffset.x,
+        p.y*drawPixelSize + drawOffset.y,
+        Math.ceil(drawPixelSize),
+        Math.ceil(drawPixelSize)
       );
     });
 
-    // light grey grid lines
+    // light grey grid
     ctx.strokeStyle = "rgba(0,0,0,0.1)";
     ctx.lineWidth = 1;
     for(let i=0;i<=gridSizeRef.current.width;i++){
       ctx.beginPath();
-      ctx.moveTo(i*pixelSize + offset.x, offset.y);
-      ctx.lineTo(i*pixelSize + offset.x, gridSizeRef.current.height*pixelSize + offset.y);
+      ctx.moveTo(i*drawPixelSize + drawOffset.x, drawOffset.y);
+      ctx.lineTo(i*drawPixelSize + drawOffset.x, gridSizeRef.current.height*drawPixelSize + drawOffset.y);
       ctx.stroke();
     }
     for(let j=0;j<=gridSizeRef.current.height;j++){
       ctx.beginPath();
-      ctx.moveTo(offset.x, j*pixelSize + offset.y);
-      ctx.lineTo(gridSizeRef.current.width*pixelSize + offset.x, j*pixelSize + offset.y);
+      ctx.moveTo(drawOffset.x, j*drawPixelSize + drawOffset.y);
+      ctx.lineTo(gridSizeRef.current.width*drawPixelSize + drawOffset.x, j*drawPixelSize + drawOffset.y);
       ctx.stroke();
     }
 
-    // black outline every 100x100 pixels
+    // black outline every 100x100
     ctx.strokeStyle = "#000000";
     ctx.lineWidth = 2;
     const blockSize = 100;
     for(let i=0;i<gridSizeRef.current.width;i+=blockSize){
       for(let j=0;j<gridSizeRef.current.height;j+=blockSize){
         ctx.strokeRect(
-          i*pixelSize + offset.x,
-          j*pixelSize + offset.y,
-          blockSize*pixelSize,
-          blockSize*pixelSize
+          i*drawPixelSize + drawOffset.x,
+          j*drawPixelSize + drawOffset.y,
+          blockSize*drawPixelSize,
+          blockSize*drawPixelSize
         );
       }
     }
@@ -105,7 +121,6 @@ export default function Page() {
       } else {
         gridSizeRef.current.height *= 2;
       }
-      drawCanvas();
     }
   };
 
@@ -115,16 +130,19 @@ export default function Page() {
       y: window.innerHeight/2 - (gridSizeRef.current.height*pixelSize)/2
     });
 
+    // Fetch existing pixels
     supabase.from("pixels").select("*").then(({ data }) => {
       if(data && data.length>0){
         pixelsRef.current = data.map(p => ({ x: p.x, y: p.y, color: p.color }));
         setPlacedCount(pixelsRef.current.length);
-      } else {
-        pixelsRef.current = [];
+
+        const earliest = Math.min(...data.map(p=>new Date(p.created_at).getTime()));
+        setServerStartTime(earliest);
       }
       drawCanvas();
     });
 
+    // Realtime updates
     const channel = supabase.channel("pixels")
       .on("postgres_changes", { event: "*", schema: "public", table: "pixels" },
         payload => {
@@ -174,7 +192,7 @@ export default function Page() {
     drawCanvas();
     checkExpandGrid();
 
-    supabase.from("pixels").upsert({ x: ix, y: iy, color: selectedColor });
+    supabase.from("pixels").upsert({ x: ix, y: iy, color: selectedColor, created_at: new Date() });
 
     setCooldown(true);
     setTimer(60);
@@ -226,8 +244,6 @@ export default function Page() {
   };
   const handleMouseUp = () => { draggingRef.current = false; };
 
-  useEffect(()=>{ drawCanvas(); },[offset,pixelSize]);
-
   useEffect(() => {
     const interval = setInterval(() => {
       const diff = Date.now() - serverStartTime;
@@ -270,7 +286,7 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Cooldown Timer - bottom right */}
+      {/* Cooldown Timer */}
       {cooldown && (
         <div style={{
           position: "fixed",
@@ -287,7 +303,7 @@ export default function Page() {
         </div>
       )}
 
-      {/* Server Uptime + Placed Pixels - bottom left */}
+      {/* Server uptime + placed pixels */}
       <div style={{
         position: "fixed",
         bottom: 10,
