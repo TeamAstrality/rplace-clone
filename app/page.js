@@ -38,8 +38,8 @@ export default function Page() {
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // background
-    ctx.fillStyle = "#eeeeee"; // light gray so white pixels are visible
+    // white background
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
     // draw pixels
@@ -52,27 +52,11 @@ export default function Page() {
         Math.ceil(pixelSize)
       );
     });
-
-    // draw grid
-    ctx.strokeStyle = "#ccc";
-    ctx.lineWidth = 0.5;
-    for(let i=0;i<=gridSizeRef.current.width;i++){
-      ctx.beginPath();
-      ctx.moveTo(i*pixelSize + offset.x + 0.5, offset.y);
-      ctx.lineTo(i*pixelSize + offset.x + 0.5, gridSizeRef.current.height*pixelSize + offset.y);
-      ctx.stroke();
-    }
-    for(let i=0;i<=gridSizeRef.current.height;i++){
-      ctx.beginPath();
-      ctx.moveTo(offset.x, i*pixelSize + offset.y + 0.5);
-      ctx.lineTo(gridSizeRef.current.width*pixelSize + offset.x, i*pixelSize + offset.y + 0.5);
-      ctx.stroke();
-    }
   };
 
   const checkExpandGrid = () => {
     const totalPixels = gridSizeRef.current.width * gridSizeRef.current.height;
-    const placedPixels = pixelsRef.current.length; // count only placed pixels
+    const placedPixels = pixelsRef.current.length;
 
     if (placedPixels >= totalPixels) {
       if (gridSizeRef.current.width === gridSizeRef.current.height) {
@@ -94,19 +78,19 @@ export default function Page() {
       y: window.innerHeight/2 - (gridSizeRef.current.height*pixelSize)/2
     });
 
-    // fetch initial pixels from Supabase
+    // fetch pixels from Supabase
     supabase.from("pixels").select("*").then(({ data }) => {
-      if (data && data.length > 0) {
+      if(data && data.length>0){
         pixelsRef.current = data.map(p => ({ x: p.x, y: p.y, color: p.color }));
       } else {
-        // add test pixels so colors show immediately
+        // test pixels
         pixelsRef.current = [
           { x:0, y:0, color:"#ff0000" },
           { x:1, y:0, color:"#00ff00" },
           { x:0, y:1, color:"#0000ff" },
           { x:1, y:1, color:"#ffff00" },
           { x:2, y:0, color:"#ffffff" },
-          { x:2, y:1, color:"#000000" } // black test pixel
+          { x:2, y:1, color:"#000000" }
         ];
       }
       drawCanvas();
@@ -146,14 +130,14 @@ export default function Page() {
     const iy = Math.floor(y);
     if(ix<0||ix>=gridSizeRef.current.width||iy<0||iy>=gridSizeRef.current.height) return;
 
-    // Immediately update locally
+    // immediate local update
     const idx = pixelsRef.current.findIndex(p => p.x===ix && p.y===iy);
     if(idx>=0) pixelsRef.current[idx].color = selectedColor;
     else pixelsRef.current.push({ x: ix, y: iy, color: selectedColor });
     drawCanvas();
     checkExpandGrid();
 
-    // Send to Supabase for multiplayer
+    // send to Supabase
     supabase.from("pixels").upsert({ x: ix, y: iy, color: selectedColor });
 
     setCooldown(true);
@@ -166,14 +150,23 @@ export default function Page() {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    const delta = e.deltaY<0?1.1:0.9;
-    const newPixelSize = Math.min(50, Math.max(4, pixelSize*delta));
+    const delta = e.deltaY < 0 ? 1.1 : 0.9;
+    let newPixelSize = pixelSize * delta;
 
-    const offsetX = mouseX - ((mouseX - offset.x)*newPixelSize)/pixelSize;
-    const offsetY = mouseY - ((mouseY - offset.y)*newPixelSize)/pixelSize;
+    // limit zoom out
+    const minPixelSizeX = window.innerWidth / gridSizeRef.current.width;
+    const minPixelSizeY = window.innerHeight / gridSizeRef.current.height;
+    const minPixelSize = Math.min(minPixelSizeX, minPixelSizeY);
+
+    newPixelSize = Math.max(newPixelSize, minPixelSize);
+    newPixelSize = Math.min(newPixelSize, 50); // max zoom
+
+    // adjust offset so zoom centers on mouse
+    const offsetX = mouseX - ((mouseX - offset.x) * newPixelSize) / pixelSize;
+    const offsetY = mouseY - ((mouseY - offset.y) * newPixelSize) / pixelSize;
 
     setPixelSize(newPixelSize);
-    setOffset({x: offsetX, y: offsetY});
+    setOffset({ x: offsetX, y: offsetY });
   };
 
   const handleMouseDown = e => {
@@ -204,19 +197,20 @@ export default function Page() {
         onMouseLeave={handleMouseUp}
       />
       <div style={{
-        position:"fixed", top:10, left:10,
-        background:"rgba(255,255,255,0.8)",
+        position:"fixed",
+        top:10, left:10,
+        background:"rgba(255,255,255,0.9)",
         padding:5, borderRadius:5,
-        display:"flex", gap:5
+        display:"flex", flexDirection:"column", gap:5
       }}>
-        {COLORS.map(c=>(
-          <div key={c} onClick={()=>setSelectedColor(c)}
-            style={{
-              width:24, height:24, background:c,
-              border:selectedColor===c?"3px solid black":"1px solid #999",
-              cursor:"pointer"
-            }}/>
-        ))}
+        <input type="color" value={selectedColor} onChange={e=>setSelectedColor(e.target.value)} style={{width:50,height:50,border:"1px solid #999"}}/>
+        <input type="text" value={selectedColor} onChange={e=>setSelectedColor(e.target.value)} style={{width:70}}/>
+        <div style={{display:"flex", gap:5, flexWrap:"wrap"}}>
+          {COLORS.map(c=>(
+            <div key={c} onClick={()=>setSelectedColor(c)}
+              style={{width:24,height:24,background:c,border:selectedColor===c?"3px solid black":"1px solid #999",cursor:"pointer"}}/>
+          ))}
+        </div>
       </div>
     </>
   );
