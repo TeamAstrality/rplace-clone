@@ -34,6 +34,7 @@ export default function Page() {
   const gridSizeRef = useRef({ ...DEFAULT_GRID_SIZE });
   const draggingRef = useRef(false);
   const lastMouseRef = useRef({ x: 0, y: 0 });
+  const rightClickRef = useRef(false);
 
   const smoothOffsetRef = useRef(offset);
   const smoothPixelSizeRef = useRef(pixelSize);
@@ -130,6 +131,11 @@ export default function Page() {
       y: window.innerHeight/2 - (gridSizeRef.current.height*pixelSize)/2
     });
 
+    // Prevent right-click menu
+    const canvas = canvasRef.current;
+    const handleContextMenu = e => e.preventDefault();
+    canvas.addEventListener("contextmenu", handleContextMenu);
+
     // Fetch existing pixels
     supabase.from("pixels").select("*").then(({ data }) => {
       if(data && data.length>0){
@@ -162,13 +168,14 @@ export default function Page() {
     window.addEventListener("resize", handleResize);
 
     return ()=>{
+      canvas.removeEventListener("contextmenu", handleContextMenu);
       supabase.removeChannel(channel);
       window.removeEventListener("resize", handleResize);
     };
   },[]);
 
   const handleClick = e => {
-    if(cooldown) return;
+    if(cooldown || rightClickRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const scaleX = canvasRef.current.width/rect.width;
@@ -234,15 +241,17 @@ export default function Page() {
   const handleMouseDown = e => {
     draggingRef.current = true;
     lastMouseRef.current = {x:e.clientX,y:e.clientY};
+    rightClickRef.current = e.button===2;
   };
   const handleMouseMove = e => {
     if(!draggingRef.current) return;
+    if(!rightClickRef.current) return;
     const dx = e.clientX - lastMouseRef.current.x;
     const dy = e.clientY - lastMouseRef.current.y;
     lastMouseRef.current = {x:e.clientX,y:e.clientY};
     setOffset(prev=>({x: prev.x + dx, y: prev.y + dy}));
   };
-  const handleMouseUp = () => { draggingRef.current = false; };
+  const handleMouseUp = () => { draggingRef.current = false; rightClickRef.current=false; };
 
   useEffect(() => {
     const interval = setInterval(() => {
