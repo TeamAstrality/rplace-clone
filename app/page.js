@@ -20,7 +20,14 @@ export default function Page() {
   const [pixelSize, setPixelSize] = useState(DEFAULT_PIXEL_SIZE);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [selectedColor, setSelectedColor] = useState("#000000");
+
+  // cooldown timer
   const [cooldown, setCooldown] = useState(false);
+  const [timer, setTimer] = useState(0);
+
+  // server uptime
+  const [serverStartTime] = useState(Date.now());
+  const [uptime, setUptime] = useState("0:00:00");
 
   const pixelsRef = useRef([]);
   const gridSizeRef = useRef({ ...DEFAULT_GRID_SIZE });
@@ -117,8 +124,10 @@ export default function Page() {
     };
   },[]);
 
+  // cooldown click handler
   const handleClick = e => {
     if(cooldown) return;
+
     const rect = canvasRef.current.getBoundingClientRect();
     const scaleX = canvasRef.current.width/rect.width;
     const scaleY = canvasRef.current.height/rect.height;
@@ -140,8 +149,19 @@ export default function Page() {
     // send to Supabase
     supabase.from("pixels").upsert({ x: ix, y: iy, color: selectedColor });
 
+    // start cooldown timer
     setCooldown(true);
-    setTimeout(()=>setCooldown(false),3000);
+    setTimer(60);
+    const interval = setInterval(() => {
+      setTimer(prev => {
+        if(prev <= 1){
+          clearInterval(interval);
+          setCooldown(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const handleWheel = e => {
@@ -159,7 +179,7 @@ export default function Page() {
     const minPixelSize = Math.min(minPixelSizeX, minPixelSizeY);
 
     newPixelSize = Math.max(newPixelSize, minPixelSize);
-    newPixelSize = Math.min(newPixelSize, 50); // max zoom
+    newPixelSize = Math.min(newPixelSize, 50);
 
     // adjust offset so zoom centers on mouse
     const offsetX = mouseX - ((mouseX - offset.x) * newPixelSize) / pixelSize;
@@ -184,6 +204,18 @@ export default function Page() {
 
   useEffect(()=>{ drawCanvas(); },[offset,pixelSize]);
 
+  // Server uptime timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const diff = Date.now() - serverStartTime;
+      const hours = Math.floor(diff / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setUptime(`${hours}:${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [serverStartTime]);
+
   return (
     <>
       <canvas
@@ -196,6 +228,7 @@ export default function Page() {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       />
+      {/* Color Picker */}
       <div style={{
         position:"fixed",
         top:10, left:10,
@@ -208,10 +241,4 @@ export default function Page() {
         <div style={{display:"flex", gap:5, flexWrap:"wrap"}}>
           {COLORS.map(c=>(
             <div key={c} onClick={()=>setSelectedColor(c)}
-              style={{width:24,height:24,background:c,border:selectedColor===c?"3px solid black":"1px solid #999",cursor:"pointer"}}/>
-          ))}
-        </div>
-      </div>
-    </>
-  );
-}
+              style={{width:24,height:24,background:c
