@@ -8,7 +8,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_KEY
 );
 
-const GRID_SIZE = 100;
+const GRID_SIZE = 100; // 100x100 pixels
 const DEFAULT_PIXEL_SIZE = 10;
 const COLORS = [
   "#ffffff", "#000000", "#ff0000", "#00ff00", "#0000ff",
@@ -22,15 +22,17 @@ export default function Page() {
   const [selectedColor, setSelectedColor] = useState("#000000");
   const [cooldown, setCooldown] = useState(false);
   const pixelsRef = useRef([]);
+  const draggingRef = useRef(false);
+  const lastMouseRef = useRef({ x: 0, y: 0 });
 
-  // draw canvas
+  // Draw the canvas
   const drawCanvas = () => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    // clear
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -61,8 +63,8 @@ export default function Page() {
     }
   };
 
+  // Initial setup
   useEffect(() => {
-    // center grid initially
     setOffset({
       x: window.innerWidth / 2 - (GRID_SIZE * pixelSize) / 2,
       y: window.innerHeight / 2 - (GRID_SIZE * pixelSize) / 2
@@ -95,6 +97,7 @@ export default function Page() {
     };
   }, []);
 
+  // Click to place pixel
   const handleClick = e => {
     if (cooldown) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -107,6 +110,7 @@ export default function Page() {
     setTimeout(() => setCooldown(false), 3000);
   };
 
+  // Mouse wheel zoom
   const handleWheel = e => {
     e.preventDefault();
     const rect = canvasRef.current.getBoundingClientRect();
@@ -123,6 +127,22 @@ export default function Page() {
     setOffset({ x: offsetX, y: offsetY });
   };
 
+  // Mouse drag pan
+  const handleMouseDown = e => {
+    draggingRef.current = true;
+    lastMouseRef.current = { x: e.clientX, y: e.clientY };
+  };
+  const handleMouseMove = e => {
+    if (!draggingRef.current) return;
+    const dx = e.clientX - lastMouseRef.current.x;
+    const dy = e.clientY - lastMouseRef.current.y;
+    lastMouseRef.current = { x: e.clientX, y: e.clientY };
+    setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+  };
+  const handleMouseUp = () => {
+    draggingRef.current = false;
+  };
+
   return (
     <>
       <canvas
@@ -130,6 +150,10 @@ export default function Page() {
         style={{ display: "block", width: "100vw", height: "100vh", cursor: "crosshair" }}
         onClick={handleClick}
         onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
       />
       <div style={{
         position: "fixed",
