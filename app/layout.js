@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'rPlace Clone',
-  description: 'A collaborative pixel canvas like Reddit Place.',
+  title: 'Polytrack Place',
+  description: 'ploytcak',
 }
 
 export default function RootLayout({ children }) {
