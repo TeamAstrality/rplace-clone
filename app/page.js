@@ -36,7 +36,6 @@ export default function Page() {
   const lastMouseRef = useRef({ x: 0, y: 0 });
   const rightClickRef = useRef(false);
 
-  // Draw everything immediately
   const drawCanvas = (drawOffset = offset, drawPixelSize = pixelSize) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -48,11 +47,11 @@ export default function Page() {
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // white background
+    // White background
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    // draw pixels
+    // Draw pixels
     pixelsRef.current.forEach(p => {
       ctx.fillStyle = p.color;
       ctx.fillRect(
@@ -63,7 +62,7 @@ export default function Page() {
       );
     });
 
-    // light grey grid
+    // Light grey grid lines
     ctx.strokeStyle = "rgba(0,0,0,0.1)";
     ctx.lineWidth = 1;
     for(let i=0;i<=gridSizeRef.current.width;i++){
@@ -79,7 +78,7 @@ export default function Page() {
       ctx.stroke();
     }
 
-    // black outline every 100x100
+    // Black outline every 100x100
     ctx.strokeStyle = "#000000";
     ctx.lineWidth = 2;
     const blockSize = 100;
@@ -118,12 +117,8 @@ export default function Page() {
     });
 
     const canvas = canvasRef.current;
+    canvas.addEventListener("contextmenu", e => e.preventDefault());
 
-    // Prevent right-click menu
-    const handleContextMenu = e => e.preventDefault();
-    canvas.addEventListener("contextmenu", handleContextMenu);
-
-    // Fetch existing pixels
     const fetchPixels = async () => {
       const { data } = await supabase.from("pixels").select("*");
       if(data && data.length>0){
@@ -137,7 +132,6 @@ export default function Page() {
     };
     fetchPixels();
 
-    // Realtime updates
     const channel = supabase.channel("pixels")
       .on("postgres_changes", { event: "*", schema: "public", table: "pixels" },
         payload => {
@@ -157,7 +151,6 @@ export default function Page() {
     window.addEventListener("resize", handleResize);
 
     return ()=>{
-      canvas.removeEventListener("contextmenu", handleContextMenu);
       supabase.removeChannel(channel);
       window.removeEventListener("resize", handleResize);
     };
@@ -188,12 +181,12 @@ export default function Page() {
     drawCanvas();
     checkExpandGrid();
 
-    // Persist pixel
+    // Save to Supabase using timestamptz
     await supabase
       .from("pixels")
       .upsert(
-        { x: ix, y: iy, color: selectedColor, updated_at: new Date() },
-        { onConflict: ['x', 'y'] }
+        { x: ix, y: iy, color: selectedColor, updated_at: new Date().toISOString() },
+        { onConflict: ['x','y'] }
       );
 
     setCooldown(true);
