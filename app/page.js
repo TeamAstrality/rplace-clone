@@ -36,21 +36,7 @@ export default function Page() {
   const lastMouseRef = useRef({ x: 0, y: 0 });
   const rightClickRef = useRef(false);
 
-  const smoothOffsetRef = useRef(offset);
-  const smoothPixelSizeRef = useRef(pixelSize);
-
-  // Smooth animation loop
-  useEffect(() => {
-    const animate = () => {
-      smoothOffsetRef.current.x += (offset.x - smoothOffsetRef.current.x) * 0.2;
-      smoothOffsetRef.current.y += (offset.y - smoothOffsetRef.current.y) * 0.2;
-      smoothPixelSizeRef.current += (pixelSize - smoothPixelSizeRef.current) * 0.2;
-      drawCanvas(smoothOffsetRef.current, smoothPixelSizeRef.current);
-      requestAnimationFrame(animate);
-    };
-    animate();
-  }, [offset, pixelSize]);
-
+  // Draw everything immediately
   const drawCanvas = (drawOffset = offset, drawPixelSize = pixelSize) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -131,8 +117,9 @@ export default function Page() {
       y: window.innerHeight/2 - (gridSizeRef.current.height*pixelSize)/2
     });
 
-    // Prevent right-click menu
     const canvas = canvasRef.current;
+
+    // Prevent right-click menu
     const handleContextMenu = e => e.preventDefault();
     canvas.addEventListener("contextmenu", handleContextMenu);
 
@@ -244,6 +231,7 @@ export default function Page() {
 
     setPixelSize(newPixelSize);
     setOffset({ x: offsetX, y: offsetY });
+    drawCanvas({ x: offsetX, y: offsetY }, newPixelSize);
   };
 
   const handleMouseDown = e => {
@@ -252,12 +240,15 @@ export default function Page() {
     rightClickRef.current = e.button===2;
   };
   const handleMouseMove = e => {
-    if(!draggingRef.current) return;
-    if(!rightClickRef.current) return;
+    if(!draggingRef.current || !rightClickRef.current) return;
     const dx = e.clientX - lastMouseRef.current.x;
     const dy = e.clientY - lastMouseRef.current.y;
     lastMouseRef.current = {x:e.clientX,y:e.clientY};
-    setOffset(prev=>({x: prev.x + dx, y: prev.y + dy}));
+    setOffset(prev=>{
+      const newOffset = {x: prev.x + dx, y: prev.y + dy};
+      drawCanvas(newOffset, pixelSize);
+      return newOffset;
+    });
   };
   const handleMouseUp = () => { draggingRef.current = false; rightClickRef.current=false; };
 
