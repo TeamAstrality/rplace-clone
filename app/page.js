@@ -99,13 +99,14 @@ export default function Page() {
       if (data && data.length > 0) {
         pixelsRef.current = data.map(p => ({ x: p.x, y: p.y, color: p.color }));
       } else {
-        // add some test pixels so colors show up immediately
+        // add test pixels so colors show immediately
         pixelsRef.current = [
           { x:0, y:0, color:"#ff0000" },
           { x:1, y:0, color:"#00ff00" },
           { x:0, y:1, color:"#0000ff" },
           { x:1, y:1, color:"#ffff00" },
-          { x:2, y:0, color:"#ffffff" } // white pixel visible on gray background
+          { x:2, y:0, color:"#ffffff" },
+          { x:2, y:1, color:"#000000" } // black test pixel
         ];
       }
       drawCanvas();
@@ -145,7 +146,16 @@ export default function Page() {
     const iy = Math.floor(y);
     if(ix<0||ix>=gridSizeRef.current.width||iy<0||iy>=gridSizeRef.current.height) return;
 
-    supabase.from("pixels").upsert({x: ix, y: iy, color: selectedColor});
+    // Immediately update locally
+    const idx = pixelsRef.current.findIndex(p => p.x===ix && p.y===iy);
+    if(idx>=0) pixelsRef.current[idx].color = selectedColor;
+    else pixelsRef.current.push({ x: ix, y: iy, color: selectedColor });
+    drawCanvas();
+    checkExpandGrid();
+
+    // Send to Supabase for multiplayer
+    supabase.from("pixels").upsert({ x: ix, y: iy, color: selectedColor });
+
     setCooldown(true);
     setTimeout(()=>setCooldown(false),3000);
   };
