@@ -137,16 +137,18 @@ export default function Page() {
     canvas.addEventListener("contextmenu", handleContextMenu);
 
     // Fetch existing pixels
-    supabase.from("pixels").select("*").then(({ data }) => {
+    const fetchPixels = async () => {
+      const { data } = await supabase.from("pixels").select("*");
       if(data && data.length>0){
         pixelsRef.current = data.map(p => ({ x: p.x, y: p.y, color: p.color }));
         setPlacedCount(pixelsRef.current.length);
 
-        const earliest = Math.min(...data.map(p=>new Date(p.created_at).getTime()));
+        const earliest = Math.min(...data.map(p=>new Date(p.updated_at).getTime()));
         setServerStartTime(earliest);
       }
       drawCanvas();
-    });
+    };
+    fetchPixels();
 
     // Realtime updates
     const channel = supabase.channel("pixels")
@@ -174,7 +176,7 @@ export default function Page() {
     };
   },[]);
 
-  const handleClick = e => {
+  const handleClick = async e => {
     if(cooldown || rightClickRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
@@ -199,7 +201,13 @@ export default function Page() {
     drawCanvas();
     checkExpandGrid();
 
-    supabase.from("pixels").upsert({ x: ix, y: iy, color: selectedColor, created_at: new Date() });
+    // Persist pixel
+    await supabase
+      .from("pixels")
+      .upsert(
+        { x: ix, y: iy, color: selectedColor, updated_at: new Date() },
+        { onConflict: ['x', 'y'] }
+      );
 
     setCooldown(true);
     setTimer(60);
