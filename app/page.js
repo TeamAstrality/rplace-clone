@@ -59,6 +59,37 @@ export default function Page() {
         Math.ceil(pixelSize)
       );
     });
+
+    // light grey grid lines
+    ctx.strokeStyle = "rgba(0,0,0,0.1)";
+    ctx.lineWidth = 1;
+    for(let i=0;i<=gridSizeRef.current.width;i++){
+      ctx.beginPath();
+      ctx.moveTo(i*pixelSize + offset.x, offset.y);
+      ctx.lineTo(i*pixelSize + offset.x, gridSizeRef.current.height*pixelSize + offset.y);
+      ctx.stroke();
+    }
+    for(let j=0;j<=gridSizeRef.current.height;j++){
+      ctx.beginPath();
+      ctx.moveTo(offset.x, j*pixelSize + offset.y);
+      ctx.lineTo(gridSizeRef.current.width*pixelSize + offset.x, j*pixelSize + offset.y);
+      ctx.stroke();
+    }
+
+    // black outline every 100x100 pixels
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 2;
+    const blockSize = 100;
+    for(let i=0;i<gridSizeRef.current.width;i+=blockSize){
+      for(let j=0;j<gridSizeRef.current.height;j+=blockSize){
+        ctx.strokeRect(
+          i*pixelSize + offset.x,
+          j*pixelSize + offset.y,
+          blockSize*pixelSize,
+          blockSize*pixelSize
+        );
+      }
+    }
   };
 
   const checkExpandGrid = () => {
@@ -241,4 +272,43 @@ export default function Page() {
         <div style={{display:"flex", gap:5, flexWrap:"wrap"}}>
           {COLORS.map(c=>(
             <div key={c} onClick={()=>setSelectedColor(c)}
-              style={{width:24,height:24,background:c
+              style={{width:24,height:24,background:c,border:c===selectedColor?"2px solid #000":"1px solid #999",cursor:"pointer"}}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Cooldown Timer - bottom right */}
+      {cooldown && (
+        <div style={{
+          position: "fixed",
+          bottom: 10,
+          right: 10,
+          background: "rgba(0,0,0,0.7)",
+          color: "white",
+          padding: "8px 12px",
+          borderRadius: "8px",
+          fontSize: "16px",
+          fontFamily: "monospace"
+        }}>
+          {Math.ceil(timer)}s
+        </div>
+      )}
+
+      {/* Server Uptime Timer - bottom left */}
+      <div style={{
+        position: "fixed",
+        bottom: 10,
+        left: 10,
+        background: "rgba(0,0,0,0.7)",
+        color: "white",
+        padding: "8px 12px",
+        borderRadius: "8px",
+        fontSize: "16px",
+        fontFamily: "monospace"
+      }}>
+        Server: {uptime}
+      </div>
+    </>
+  );
+}
